@@ -36,6 +36,8 @@ class ProbePlusBLE:
         self._callbacks: list[Callable[[RelayState|ProbeState]], None] = []
         self._connect_lock: asyncio.Lock = asyncio.Lock()
         self._disconnect_timer: asyncio.TimerHandle | None = None
+        self._stop_event: asyncio.Event = asyncio.Event()
+        self._connection_task: asyncio.Task | None = None
         self.loop = asyncio.get_running_loop()
         self._expected_disconnect = True
         self._client: BleakClientWithServiceCache | None = None
@@ -122,32 +124,6 @@ class ProbePlusBLE:
                     )
                 await client.disconnect()
 
-    @retry_bluetooth_connection_error(10)
-    async def _retry_ble_connection(self) -> None:
-        """Send command to device and read response."""
-        try:
-            await self._ensure_connected()
-        except BleakDBusError as ex:
-            # Disconnect so we can reset state and try again
-            await asyncio.sleep(60)
-            _LOGGER.debug(
-                "%s: RSSI: %s; Backing off %ss; Disconnecting due to error: %s",
-                self.name,
-                self.rssi,
-                60,
-                ex,
-            )
-            await self._execute_disconnect()
-            raise
-        except BleakError as ex:
-            # Disconnect so we can reset state and try again
-            _LOGGER.debug(
-                "%s: RSSI: %s; Disconnecting due to error: %s", self.name, self.rssi, ex
-            )
-            await self._execute_disconnect()
-            raise
-
-
     def register_callback(
         self, callback: Callable[[RelayState|ProbeState], None]
     ) -> Callable[[], None]:
@@ -174,22 +150,37 @@ class ProbePlusBLE:
             if self._client and self._client.is_connected:
                 return
             _LOGGER.debug("%s: Connecting; RSSI: %s", self.name, self.rssi)
-            client = await establish_connection(
-                BleakClientWithServiceCache,
-                self._ble_device,
-                self.name,
-                self._disconnected,
-                use_services_cache=True,
-                ble_device_callback=lambda: self._ble_device,
-            )
-            _LOGGER.debug("%s: Connected; RSSI: %s", self.name, self.rssi)
+            while True:
+                client = await establish_connection(
+                    BleakClientWithServiceCache,
+                    self._ble_device,
+                    self.name,
+                    self._disconnected,
+                    use_services_cache=True,
+                    ble_device_callback=lambda: self._ble_device,
+                )
+                if client.is_connected:
+                    _LOGGER.debug("%s: Connected; RSSI: %s", self.name, self.rssi)
 
-            self._client = client
+                    self._client = client
 
-            _LOGGER.debug(
-                "%s: Subscribe to notifications; RSSI: %s", self.name, self.rssi
-            )
-            await client.start_notify(BLE_DATA_RECEIVE, self._notification_handler)
+                    _LOGGER.debug(
+                        "%s: Subscribe to notifications; RSSI: %s", self.name, self.rssi
+                    )
+                    await client.start_notify(BLE_DATA_RECEIVE, self._notification_handler)
+                    break
+                else:
+                    _LOGGER.debug("%s: Not Connected")
+                    await asyncio.sleep(60)
+
+    async def _ensure_connected_task(self) -> None:
+        """A seperate task to ensure the device is always connected."""
+        while not self._stop_event.is_set():
+            if self._client and not self._client.is_connected:
+                await self._ensure_connected()
+            if not self._client:
+                await self._ensure_connected()
+            await asyncio.sleep(5)
 
     def _fire_callbacks(self) -> None:
         """Fire the callbacks."""
@@ -236,3 +227,15 @@ class ProbePlusBLE:
                     self._relay_state.status = int(status_byte)
 
         self._fire_callbacks()
+
+    async def stop(self) -> None:
+        """Stop Probe Plus."""
+        _LOGGER.debug("%s: Stop", self.name)
+        self._stop_event.set()
+        await self._execute_disconnect()
+
+    async def start(self) -> None:
+        """Start Probe Plus."""
+        _LOGGER.debug("%s: Start", self.name)
+        await self._ensure_connected()
+        self._connection_task = asyncio.create_task(self._ensure_connected_task())
