@@ -1,11 +1,11 @@
 [tool.poetry]
-name = "pyprobeplus-ble"
-version = "1.1.1"
+name = "pyprobeplus"
+version = "1.0.0"
 description = "Read sensor data from PROBE PLUS temperature probes"
 authors = ["J. Harvey <jordan@hrvy.uk>"]
 readme = "README.md"
-repository = "https://github.com/pantherale0/pyprobeplus-ble"
-documentation = "https://pyprobeplus-ble.readthedocs.io"
+repository = "https://github.com/pantherale0/pyprobeplus"
+documentation = "https://pyprobeplus.readthedocs.io"
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Developers",
@@ -15,12 +15,12 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
 ]
 packages = [
-    { include = "pyprobeplus-ble", from = "src" },
+    { include = "pyprobeplus" },
 ]
 
 [tool.poetry.urls]
-"Bug Tracker" = "https://github.com/pantherale0/pyprobeplus-ble/issues"
-"Changelog" = "https://github.com/pantherale0/pyprobeplus-ble/blob/main/CHANGELOG.md"
+"Bug Tracker" = "https://github.com/pantherale0/pyprobeplus/issues"
+"Changelog" = "https://github.com/pantherale0/pyprobeplus/blob/main/CHANGELOG.md"
 
 [tool.poetry.dependencies]
 python = "^3.9"
@@ -48,12 +48,11 @@ pytest-cov = "^3.0"
 [tool.semantic_release]
 branch = "main"
 version_toml = "pyproject.toml:tool.poetry.version"
-version_variable = "src/pyprobeplus-ble/__init__.py:__version__"
+version_variable = "pyprobeplus/__init__.py:__version__"
 build_command = "pip install poetry && poetry build"
 
 [tool.pytest.ini_options]
-addopts = "-v -Wdefault --cov=pyprobeplus-ble --cov-report=term-missing:skip-covered"
-pythonpath = ["src"]
+addopts = "-v -Wdefault --cov=pyprobeplus --cov-report=term-missing:skip-covered"
 
 [tool.coverage.run]
 branch = true
@@ -68,14 +67,13 @@ exclude_lines = [
 
 [tool.isort]
 profile = "black"
-known_first_party = ["pyprobeplus-ble", "tests"]
+known_first_party = ["pyprobeplus", "tests"]
 
 [tool.mypy]
 check_untyped_defs = true
 disallow_any_generics = true
 disallow_incomplete_defs = true
 disallow_untyped_defs = true
-mypy_path = "src/"
 no_implicit_optional = true
 show_error_codes = true
 warn_unreachable = true
