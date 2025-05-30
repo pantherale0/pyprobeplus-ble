@@ -27,6 +27,8 @@ class ParserBase:
         """Handle data notification updates from the device."""
         probe_channels = [0]  # Hardcoded probe channels
 
+        _LOGGER.debug(">> Received data notification: %s", data.hex())
+
         if len(data) == 9 and data[0] == 0x00 and data[1] == 0x00:
             # probe state
             d = data[3] * 0.03125
@@ -39,9 +41,13 @@ class ParserBase:
             else:
                 self.state.probe_battery = 20
             temp_bytes = data[4:6]
+            temp_bytes = bytearray([temp_bytes[1], temp_bytes[0]])
+            _LOGGER.debug(">> Temperature state %s", temp_bytes.hex())
+            _LOGGER.debug(">> Unpacked temperature %s", struct.unpack(">H", temp_bytes)[0])
             self.state.probe_temperature = (
                 (struct.unpack(">H", temp_bytes)[0] * 0.0625) - 50.0625
-            ) / 100
+            )
+            _LOGGER.debug(">> Parsed temperature: %s", self.state.probe_temperature)
             self.state.probe_rssi = data[8]
             return self.state
 
@@ -49,6 +55,7 @@ class ParserBase:
             # relay state
             voltage_bytes = data[2:4]
             self.state.relay_voltage = struct.unpack(">H", voltage_bytes)[0] / 1000.0
+            _LOGGER.debug(">> Voltage state %s", voltage_bytes.hex())
             if self.state.relay_voltage > 3.87:
                 self.state.relay_battery = 100
             elif self.state.relay_voltage >= 3.7:
@@ -64,6 +71,7 @@ class ParserBase:
                     self.state.relay_status = int(status_byte)
                     break
                 self.state.relay_status = None
+            _LOGGER.debug(">> Relay state %s", self.state.relay_status)
             return self.state
 
         return self.state
